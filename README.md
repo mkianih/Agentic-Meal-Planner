@@ -36,7 +36,10 @@ user_inputs = {
 }
 ```
 
-![The web UI after a completed run](screenshots/app.png)
+<!-- Absolute URL on purpose: Hugging Face rejects binaries that are not in
+     Xet/LFS, so the screenshots live only in the GitHub repo and are linked
+     from there. This renders in both places. -->
+![The web UI after a completed run](https://raw.githubusercontent.com/mkianih/Agentic-Meal-Planner/main/screenshots/app.png)
 
 ## The loop
 
