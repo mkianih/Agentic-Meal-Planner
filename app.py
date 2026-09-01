@@ -12,7 +12,7 @@ server-side process reads it. A visitor may optionally supply their own free
 key, which is used for that request only and never stored or logged.
 """
 
-import json
+import inspect
 import os
 import queue
 import threading
@@ -140,13 +140,13 @@ def run_planner(
     # Blank fields are the normal case (no allergies, empty pantry), but a
     # zero-day plan is not something the model can act on.
     if params["days"] < 1:
-        yield "Set at least one day.", "", "", ""
+        yield "Set at least one day.", "", "", None
         return
 
     try:
         client = build_client(api_key=visitor_key.strip() or None)
     except MissingAPIKey as exc:
-        yield str(exc), "", "", ""
+        yield str(exc), "", "", None
         return
 
     messages = queue.Queue()
@@ -190,7 +190,7 @@ def run_planner(
 
     transcript = []
 
-    yield "Starting...", "", "", ""
+    yield "Starting...", "", "", None
 
     while True:
         message = messages.get()
@@ -200,14 +200,14 @@ def run_planner(
 
         transcript.append(message)
 
-        yield "\n".join(transcript), "", "", ""
+        yield "\n".join(transcript), "", "", None
 
     thread.join()
 
     log_text = "\n".join(transcript)
 
     if "error" in result:
-        yield log_text, "**Run failed.** " + result["error"], "", ""
+        yield log_text, "**Run failed.** " + result["error"], "", None
         return
 
     plan = result.get("plan", {})
@@ -217,7 +217,7 @@ def run_planner(
         log_text,
         format_plan(plan),
         format_groceries(groceries),
-        json.dumps({"plan": plan, "groceries": groceries}, indent=2),
+        {"plan": plan, "groceries": groceries},
     )
 
 
@@ -240,7 +240,19 @@ KEY_NOTE = (
     "run it."
 )
 
-with gr.Blocks(title="Agentic Meal Planner", css=CSS, theme=gr.themes.Soft()) as demo:
+# Gradio moved `css` and `theme` between the Blocks constructor and launch()
+# in version 6: 4.x accepts them only on Blocks, 6.x wants them only on
+# launch() and warns otherwise. This has to run on both - locally on 4.44 and
+# on the Space's 6.26 - so ask the installed version where they belong instead
+# of guessing.
+_STYLE = {"css": CSS, "theme": gr.themes.Soft()}
+
+_LAUNCH_TAKES_STYLE = "css" in inspect.signature(gr.Blocks.launch).parameters
+
+BLOCKS_STYLE = {} if _LAUNCH_TAKES_STYLE else _STYLE
+LAUNCH_STYLE = _STYLE if _LAUNCH_TAKES_STYLE else {}
+
+with gr.Blocks(title="Agentic Meal Planner", **BLOCKS_STYLE) as demo:
 
     gr.Markdown("# Agentic Meal Planner")
     gr.Markdown(
@@ -296,8 +308,9 @@ with gr.Blocks(title="Agentic Meal Planner", css=CSS, theme=gr.themes.Soft()) as
         "takes 30-90 seconds._"
     )
 
+    # No show_copy_button: Gradio 6 removed it from Textbox.
     agent_log = gr.Textbox(
-        label="Agent log (live)", lines=20, elem_id="agent-log", show_copy_button=True
+        label="Agent log (live)", lines=20, elem_id="agent-log"
     )
 
     # gr.Markdown ignores `label`, so these carry their own headings and start
@@ -307,7 +320,10 @@ with gr.Blocks(title="Agentic Meal Planner", css=CSS, theme=gr.themes.Soft()) as
     grocery_out = gr.Markdown("## Grocery list\n\n_Not built yet._")
 
     with gr.Accordion("Raw JSON", open=False):
-        raw_out = gr.Code(language="json")
+        # gr.JSON takes the object itself and renders a collapsible tree. It
+        # has also been stable across Gradio majors, unlike some of its
+        # neighbours.
+        raw_out = gr.JSON()
 
     build_btn.click(
         run_planner,
@@ -325,4 +341,4 @@ with gr.Blocks(title="Agentic Meal Planner", css=CSS, theme=gr.themes.Soft()) as
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(**LAUNCH_STYLE)
