@@ -11,9 +11,14 @@ short_description: Agentic weekly meal planner with self-correcting LLM loop
 
 # Agentic Meal Planner
 
-A weekly dinner planner that writes a plan, reviews its own work, and fixes
-what it got wrong — built with the OpenAI Python SDK and no agent framework.
-The orchestration is plain Python.
+Ever have left over groceries in your refrigerator that you don't want to go to
+waste? In this agentic workflow, we'll generate a meal plan that makes use of
+all your existing groceries, generating a daily series of meals at specified
+caloric levels and under a certain budget.
+
+It writes a plan, reviews its own work, and fixes what it got wrong — built
+with the OpenAI Python SDK and no agent framework. The orchestration is plain
+Python.
 
 Given a household's constraints, it produces a validated meal plan and a
 combined grocery list:
