@@ -19,6 +19,7 @@ import threading
 
 import gradio as gr
 
+from logo import LOGO, WIDTH as LOGO_WIDTH
 from meal_planner import (
     MissingAPIKey,
     QuotaExhausted,
@@ -221,13 +222,47 @@ def run_planner(
     )
 
 
+# The wordmark is LOGO_WIDTH characters wide. Rather than let it overflow and
+# force horizontal scrolling, the font-size is expressed in container-query
+# width units so the art always scales to exactly fit: a monospace glyph is
+# ~0.6em wide, so the art spans LOGO_WIDTH * 0.6 em, meaning
+# 100cqw / (LOGO_WIDTH * 0.6) per character fills the container exactly.
+# Slightly under that leaves a margin. Below 700px the art would be
+# unreadably small, so a plain text title is shown instead.
+_LOGO_CQW = round(100.0 / (LOGO_WIDTH * 0.6) * 0.97, 3)
+
 CSS = """
 .gradio-container { max-width: 1100px !important; margin: 0 auto !important; }
+#logo-wrap {
+  container-type: inline-size;
+  text-align: center;
+  overflow: hidden;
+}
+#logo-wrap pre {
+  display: inline-block;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;               /* fallback if cqw is unsupported */
+  font-size: min(%(cqw)scqw, 15px);
+  line-height: 1.05;
+  color: #16a34a;
+  white-space: pre;
+  margin: 0;
+  border: none;
+  background: none;
+  padding: 0;
+}
+#logo-fallback { display: none; text-align: center; }
+#logo-fallback h1 { font-size: 30px; font-weight: 700; color: #16a34a; margin: 0; }
+@media (max-width: 700px) {
+  #logo-wrap { display: none; }
+  #logo-fallback { display: block; }
+}
 #agent-log textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
 }
-"""
+""" % {"cqw": _LOGO_CQW}
 
 SECRET_IS_SET = bool(os.environ.get("GOOGLE_API_KEY"))
 
@@ -254,7 +289,10 @@ LAUNCH_STYLE = _STYLE if _LAUNCH_TAKES_STYLE else {}
 
 with gr.Blocks(title="Agentic Meal Planner", **BLOCKS_STYLE) as demo:
 
-    gr.Markdown("# Agentic Meal Planner")
+    # The art contains no HTML-special characters, so it needs no escaping;
+    # it does need <pre> to keep its spacing.
+    gr.HTML("<div id='logo-wrap'><pre>%s</pre></div>" % LOGO)
+    gr.HTML("<div id='logo-fallback'><h1>Agentic Meal Planner</h1></div>")
     gr.Markdown(
         "An LLM drafts a weekly dinner plan, a second LLM critiques it, and "
         "**plain Python** independently validates it against hard constraints. "
