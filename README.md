@@ -4,6 +4,8 @@ emoji: 🥗
 colorFrom: green
 colorTo: yellow
 sdk: gradio
+sdk_version: 6.26.0
+python_version: '3.13'
 app_file: app.py
 pinned: false
 short_description: Agentic weekly meal planner with self-correcting LLM loop
