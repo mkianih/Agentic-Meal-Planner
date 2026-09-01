@@ -29,6 +29,8 @@ user_inputs = {
 }
 ```
 
+![The web UI after a completed run](screenshots/app.png)
+
 ## The loop
 
 ```text
@@ -107,7 +109,28 @@ python3 meal_planner.py     # command-line run
 python3 app.py              # web UI
 ```
 
-A full run makes five to nine sequential model calls.
+A full run makes three to eight sequential model calls.
+
+## Tests
+
+```bash
+python3 tests/test_validator.py         # no API key needed, no quota used
+python3 tests/test_correction_loop.py   # forces the revision path to run
+python3 tests/test_fallback.py          # model fallback + notice isolation
+python3 tests/check_models.py           # which models work, and their quotas
+python3 tests/capture_screenshot.py     # drives the UI, writes screenshots/app.png
+```
+
+`test_validator.py` is the one that matters most and the only one that is
+free to run: it checks that the deterministic validator catches wrong day
+counts, budget overruns, out-of-range calories, inexact pantry names
+(`fresh spinach` for `frozen spinach`), and allergens hidden in compound
+ingredients (`peanut oil` against an allergen listed as `peanuts`) — while
+still not tripping over `eggplant` for an `egg` allergy.
+
+`test_correction_loop.py` exists because the model almost always produces a
+valid plan on the first attempt, so `revise_plan()` would otherwise never run
+during testing. It seeds a deliberately broken draft to force the loop.
 
 ## On the model provider
 
