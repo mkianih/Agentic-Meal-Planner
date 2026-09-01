@@ -231,6 +231,11 @@ def run_planner(
 # unreadably small, so a plain text title is shown instead.
 _LOGO_CQW = round(100.0 / (LOGO_WIDTH * 0.6) * 0.97, 3)
 
+# Upper bound so the art cannot grow absurdly on a very wide viewport. It has
+# to clear the size the art actually wants at the container's max width
+# (1100px), or it would clamp the art small instead of merely capping it.
+_LOGO_MAX_PX = max(16, int(_LOGO_CQW * 11) + 4)
+
 CSS = """
 .gradio-container { max-width: 1100px !important; margin: 0 auto !important; }
 #logo-wrap {
@@ -243,7 +248,7 @@ CSS = """
   text-align: left;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;               /* fallback if cqw is unsupported */
-  font-size: min(%(cqw)scqw, 15px);
+  font-size: min(%(cqw)scqw, %(maxpx)spx);
   line-height: 1.05;
   color: #16a34a;
   white-space: pre;
@@ -262,7 +267,7 @@ CSS = """
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
 }
-""" % {"cqw": _LOGO_CQW}
+""" % {"cqw": _LOGO_CQW, "maxpx": _LOGO_MAX_PX}
 
 SECRET_IS_SET = bool(os.environ.get("GOOGLE_API_KEY"))
 

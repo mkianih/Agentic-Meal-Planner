@@ -1,39 +1,16 @@
 """ASCII-art wordmark used as the page heading.
 
-Kept in its own module because it is 26 lines of exactly 124 columns, and the
-diagonal pattern only reads correctly if every leading space survives. The
-width is baked into the font-size calculation in app.py, so changing the art
-means rechecking that number.
+Kept in its own module so the art stays intact: it only reads correctly if
+every leading space survives, and the rows are padded to a uniform width. The
+width is imported by app.py to size the text, so the CSS cannot drift out of
+step with the art.
 """
 
-WIDTH = 124
-HEIGHT = 26
+WIDTH = 73
+HEIGHT = 3
 
 # The first row begins immediately after the opening quotes on purpose: a
-# newline there would add a blank line to the art.
-LOGO = r"""         ███             ███             ███             ███             ███             ███             ███             ███
-       ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███░ 
-     ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███░   
-   ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███░     
- ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███░       
-██░            ███░            ███░            ███░            ███░            ███░            ███░            ███░         
-░            ███░            ███░            ███░            ███░            ███░            ███░            ███░           
-            ░░░             ░░░             ░░░             ░░░             ░░░             ░░░             ░░░             
-     █░███     ░███  ███             ███  ░██    ░█████████  ░██     ███             ███             ███             ███    
-   ███░████   ░███████░            ███░   ░██    ░██     ░██ ░██   ███░            ███░            ███░            ███░     
- ███░ ░██░██ ░██░███░░███████   ░██████   ░██    ░██     ░██ ░██ █░██████   ░████████  ░████████ ██░███████  ░██░████       
-██░   ░██ ░█████░██ ░██    ░██ ███░  ░██  ░██  ██░█████████  ░████░    ░██  ░█████░░██ ░██    ░███░██    ░██ ░████░         
-░     ░██  ░████░██ ░███████████░███████  ░█████░░██         ░██░ ░███████  ░███░  ░██ ░██   █░██ ░█████████ ░██░           
-      ░██  ███░ ░██ ░██    ███░░██   ░██  ░███░  ░██       ██░██ ░██   ░██ █░██    ░██ ░██ ███░██ ░██      ██░██           █
-      ░█████░   ░██  ░███████   ░█████░███░██    ░██     ███░░██  ░█████░███░██    ░██ ░████░ ░██  ░████████░░██         ███
-        ░░░             ░░░             ░░░             ░░░             ░░░             ░░░             ░░░             ░░░ 
- ███             ███             ███             ███             ███             ███             ███             ███        
-██░            ███░            ███░            ███░            ███░            ███░            ███░            ███░         
-░            ███░            ███░            ███░            ███░            ███░            ███░            ███░           
-           ███░            ███░            ███░            ███░            ███░            ███░            ███░            █
-         ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███
-       ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███░ 
-     ███░            ███░            ███░            ███░            ███░            ███░            ███░            ███░   
-    ░░░             ░░░             ░░░             ░░░             ░░░             ░░░             ░░░             ░░░     
-             ███             ███             ███             ███             ███             ███             ███            
-           ███░            ███░            ███░            ███░            ███░            ███░            ███░            █"""
+# newline there would add a blank line above the art.
+LOGO = r"""██▄  ▄██ ▄▄▄▄▄  ▄▄▄  ▄▄      █████▄ ▄▄     ▄▄▄  ▄▄  ▄▄ ▄▄  ▄▄ ▄▄▄▄▄ ▄▄▄▄ 
+██ ▀▀ ██ ██▄▄  ██▀██ ██      ██▄▄█▀ ██    ██▀██ ███▄██ ███▄██ ██▄▄  ██▄█▄
+██    ██ ██▄▄▄ ██▀██ ██▄▄▄   ██     ██▄▄▄ ██▀██ ██ ▀██ ██ ▀██ ██▄▄▄ ██ ██"""
