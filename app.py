@@ -25,6 +25,7 @@ from meal_planner import (
     build_client,
     build_grocery_list,
     build_plan,
+    set_notice_hook,
     user_inputs,
 )
 
@@ -46,9 +47,11 @@ def format_plan(plan):
     menu = plan.get("menu", [])
 
     if not menu:
-        return "_No plan was produced._"
+        return "## Final plan\n\n_No plan was produced._"
 
     lines = [
+        "## Final plan",
+        "",
         "| Day | Dish | Calories (per person) | Est. cost |",
         "| --- | --- | ---: | ---: |",
     ]
@@ -86,9 +89,11 @@ def format_groceries(groceries):
     items = groceries.get("shopping_list", [])
 
     if not items:
-        return "_No shopping list was produced._"
+        return "## Grocery list\n\n_No shopping list was produced._"
 
     lines = [
+        "## Grocery list",
+        "",
         "| Item | Estimated quantity |",
         "| --- | --- |",
     ]
@@ -151,6 +156,10 @@ def run_planner(
         messages.put(str(message))
 
     def worker():
+        # Runs on this thread only, so a model-downgrade notice lands in this
+        # visitor's log rather than in someone else's concurrent run.
+        set_notice_hook(log)
+
         try:
             plan = build_plan(params, log=log, client=client)
             result["plan"] = plan
@@ -291,8 +300,11 @@ with gr.Blocks(title="Agentic Meal Planner", css=CSS, theme=gr.themes.Soft()) as
         label="Agent log (live)", lines=20, elem_id="agent-log", show_copy_button=True
     )
 
-    plan_out = gr.Markdown(label="Final plan")
-    grocery_out = gr.Markdown(label="Grocery list")
+    # gr.Markdown ignores `label`, so these carry their own headings and start
+    # with placeholder text - otherwise the page shows two blank gaps before
+    # the first run.
+    plan_out = gr.Markdown("## Final plan\n\n_Not built yet._")
+    grocery_out = gr.Markdown("## Grocery list\n\n_Not built yet._")
 
     with gr.Accordion("Raw JSON", open=False):
         raw_out = gr.Code(language="json")

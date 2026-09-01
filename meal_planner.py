@@ -22,11 +22,23 @@ OpenAI-compatible endpoint, so every call below is ordinary OpenAI SDK code -
 import json
 import os
 import re
+import threading
 
 from dotenv import load_dotenv
-from openai import BadRequestError, OpenAI, RateLimitError
+from openai import (
+    BadRequestError,
+    InternalServerError,
+    OpenAI,
+    RateLimitError,
+)
 
-load_dotenv()
+# Loads a local .env for development. On Hugging Face Spaces there is no .env
+# and the key arrives as a repository secret instead, so a failure here must
+# never stop the module from importing.
+try:
+    load_dotenv()
+except Exception:
+    pass
 
 
 # ============================================================
@@ -42,7 +54,26 @@ PROVIDERS = {
     "google": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "api_key_env": "GOOGLE_API_KEY",
-        "model": "gemini-3.7-flash",
+        # Ordered best-first; a call falls through to the next model when one
+        # is rate-limited or unavailable. All three were verified to accept
+        # response_format={"type": "json_object"} on this endpoint.
+        #
+        # Chosen by measurement rather than from the docs:
+        #   gemini-3.7-flash    Google's own example model. Returned 503 and
+        #                       then 429 on every single attempt - it does not
+        #                       appear to be served on the free tier. Excluded.
+        #   gemini-3.6-flash    Best output by a wide margin: varied dishes,
+        #                       plausible per-day calories and costs. Capped at
+        #                       20 requests/day, and one planner run costs 3-8,
+        #                       so a shared Space exhausts it in ~2 runs.
+        #   gemini-3.5-flash-lite  Larger daily quota, weaker planning: left to
+        #                       itself it served lentils, rice and spinach all
+        #                       seven nights. Good enough as a fallback, and a
+        #                       live demo beats a dead one.
+        "models": [
+            "gemini-3.6-flash",
+            "gemini-3.5-flash-lite",
+        ],
     },
     # Paid, intentionally left inactive. This was the original target of the
     # exercise, and it is kept here only to show that switching costs one
@@ -56,7 +87,31 @@ PROVIDERS = {
 
 BASE_URL = PROVIDERS[PROVIDER]["base_url"]
 API_KEY_ENV = PROVIDERS[PROVIDER]["api_key_env"]
-MODEL = PROVIDERS[PROVIDER]["model"]
+MODELS = PROVIDERS[PROVIDER]["models"]
+
+# The preferred model. Kept as a single name because that is what the rest of
+# the program talks about; MODELS is only consulted when one is unavailable.
+MODEL = MODELS[0]
+
+
+# Progress notices (such as a model downgrade) should reach whichever front end
+# is running. The web UI serves each run on its own worker thread, so the hook
+# is thread-local - two visitors cannot end up writing into each other's logs.
+_local = threading.local()
+
+
+def set_notice_hook(hook):
+    """Route notices to a callable for the current thread. Defaults to print."""
+    _local.hook = hook
+
+
+def _notice(message):
+    hook = getattr(_local, "hook", None)
+
+    if hook is None:
+        print(message)
+    else:
+        hook(message)
 
 
 class MissingAPIKey(RuntimeError):
@@ -134,7 +189,6 @@ def get_completion(
     # `Omit`, not None - passing None explicitly serializes
     # "response_format": null into the request body and the API rejects it.
     request = {
-        "model": MODEL,
         "messages": [
             {
                 "role": "system",
@@ -153,25 +207,68 @@ def get_completion(
     try:
         response = _create_completion(active_client, request, json_mode)
 
-    except RateLimitError as exc:
+    # Both failure modes are raised only after every model in the chain has
+    # been tried, and both mean the same thing to whoever is waiting: nothing
+    # is available right now. Converting them here keeps a traceback off the
+    # screen.
+    except (RateLimitError, InternalServerError) as exc:
         raise QuotaExhausted(
-            "The API rate limit was reached. On the free tier this usually "
-            "means too many requests in a short window - wait a minute and "
-            "try again, or supply your own API key."
+            "Every available model is currently rate-limited or overloaded. "
+            "The free tier allows only a small number of requests per day per "
+            "model, and one meal plan uses several. Wait for the quota to "
+            "reset, or supply your own API key."
         ) from exc
 
     return response.choices[0].message.content
 
 
 def _create_completion(client, request, json_mode):
-    """Send the request, degrading gracefully if the provider does not accept
-    JSON mode.
+    """Send the request, trying each model in turn.
+
+    The free tier meters requests per day *per model*, so when the preferred
+    model is exhausted the next one still has its own budget. Falling through
+    keeps a shared demo alive instead of failing outright; the downgrade is
+    announced so the output is never silently worse than it looks.
+    """
+
+    for index, model in enumerate(MODELS):
+
+        attempt = dict(request)
+        attempt["model"] = model
+
+        try:
+            return _create_once(client, attempt, json_mode)
+
+        except (RateLimitError, InternalServerError) as exc:
+
+            is_last = index + 1 >= len(MODELS)
+
+            if is_last:
+                raise
+
+            _notice(
+                "\nNote: {model} is unavailable ({reason}). "
+                "Falling back to {next_model}, whose meal plans are "
+                "noticeably less varied.".format(
+                    model=model,
+                    reason=type(exc).__name__,
+                    next_model=MODELS[index + 1],
+                )
+            )
+
+    # Unreachable: the loop either returns or raises on the final model.
+    raise RuntimeError("No models are configured.")
+
+
+def _create_once(client, request, json_mode):
+    """One model, with a graceful degradation if it rejects JSON mode.
 
     Google's OpenAI-compatibility layer does not document
-    `{"type": "json_object"}`. If it turns out to reject the parameter, the
-    prompts already demand JSON-only output and `parse_json_response()`
-    already strips stray Markdown fences, so retrying without it still
-    works - just without the server-side guarantee.
+    `{"type": "json_object"}` (it demonstrates Pydantic parsing instead).
+    Every model configured here was verified to accept it, but if a future one
+    does not, the prompts already demand JSON-only output and
+    `parse_json_response()` already strips stray Markdown fences - so retrying
+    without the parameter still works, just without the server-side guarantee.
     """
 
     try:
@@ -182,9 +279,11 @@ def _create_completion(client, request, json_mode):
         if not json_mode or "response_format" not in str(exc):
             raise
 
-        print(
-            "\nNote: this provider rejected response_format=json_object. "
-            "Retrying without it and relying on prompt-enforced JSON."
+        _notice(
+            "\nNote: {} rejected response_format=json_object. Retrying "
+            "without it and relying on prompt-enforced JSON.".format(
+                request.get("model")
+            )
         )
 
         fallback = dict(request)

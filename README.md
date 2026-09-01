@@ -128,6 +128,37 @@ differ. The paid OpenAI configuration is left in `meal_planner.py` as
 commented-out reference; nothing reachable at runtime can select a billable
 model, and there is no model picker in the UI.
 
+### Which model, and why
+
+Picked by measuring the endpoint rather than trusting the docs:
+
+| Model | Result |
+| --- | --- |
+| `gemini-3.7-flash` | Google's own example model. Returned 503, then 429, on every attempt — it does not appear to be served on the free tier. **Excluded.** |
+| `gemini-3.6-flash` | Best output by a wide margin: varied dishes, plausible per-day calories and costs. Capped at **20 requests/day**. |
+| `gemini-3.5-flash-lite` | Larger daily quota, weaker planning — left alone it served lentils, rice and spinach all seven nights. |
+
+One run costs three to eight requests, so 20/day is roughly two runs before a
+shared Space goes dark. `meal_planner.py` therefore configures a **fallback
+chain**: each call tries `gemini-3.6-flash` first and drops to
+`gemini-3.5-flash-lite` on a 429 or 503. Quota is metered per model, so the
+second one still has its own budget. The downgrade is announced in the agent
+log rather than applied silently, since the output really is weaker afterwards.
+
+All three were verified to accept `response_format={"type": "json_object"}` on
+the compatibility endpoint, which Google's documentation does not actually
+promise — it demonstrates Pydantic parsing instead.
+
+### A note on `suggestions`
+
+`build_plan()` stops as soon as `fixes` is empty, exactly as specified. A
+side effect worth knowing: when the first draft is already valid — the common
+case — the critic's `suggestions` are computed and then discarded, because
+nothing triggers a revision. In one run the critic correctly observed that
+"rice is featured in four out of seven meals" and the loop ignored it. That is
+the specified behaviour, not a bug: variety is not a hard constraint, and the
+deterministic validator is the only thing allowed to force a rewrite.
+
 ## Deploying
 
 The API key must be set as a **Repository Secret** named `GOOGLE_API_KEY` in
